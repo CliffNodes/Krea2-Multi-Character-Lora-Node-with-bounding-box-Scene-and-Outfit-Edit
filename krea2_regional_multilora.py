@@ -15,6 +15,8 @@ Features:
   * split_mode auto_vertical / auto_horizontal fallbacks when no boxes wired.
   * LoRA A/B matrices are loaded raw and matched to live model Linears by
     normalised name (works on fp8 models - never touches quantized weights).
+    Both ComfyUI-native (blocks.0.attn.wq) and diffusers-style
+    (transformer_blocks.0.attn.to_q) key naming are accepted.
   * Token masks are built at RUNTIME from the real latent grid, so canvas_width
     / canvas_height only matter for interpreting pixel-space bboxes.
   * clip passes through untouched (activation injection is UNet-side).
@@ -150,6 +152,69 @@ def _norm_key(s):
     return s.replace(".", "").replace("_", "")
 
 
+# Krea 2 LoRAs ship in two naming conventions. ComfyUI-native ones use the
+# real module paths (diffusion_model.blocks.0.attn.wq), which _norm_key already
+# lines up with the live modules. Diffusers-style ones (ai-toolkit, DiffSynth,
+# most civitai Krea2 LoRAs: transformer.transformer_blocks.0.attn.to_q) do not,
+# so they matched 0 layers even though ComfyUI's own LoraLoader handles them -
+# it translates through comfy.utils.krea2_to_diffusers. The tables below mirror
+# that map so both conventions resolve to the same normalised signature.
+_KREA2_DIFFUSERS_LEAF = {
+    "attn.to_q": "attn.wq",
+    "attn.to_k": "attn.wk",
+    "attn.to_v": "attn.wv",
+    "attn.to_gate": "attn.gate",
+    "attn.to_out.0": "attn.wo",
+    "attn.to_out": "attn.wo",   # some tools drop the ".0"
+    "ff.gate": "mlp.gate",
+    "ff.up": "mlp.up",
+    "ff.down": "mlp.down",
+}
+
+_KREA2_DIFFUSERS_STEMS = {
+    "transformer_blocks": "blocks",
+    "text_fusion.layerwise_blocks": "txtfusion.layerwise_blocks",
+    "text_fusion.refiner_blocks": "txtfusion.refiner_blocks",
+}
+
+_KREA2_DIFFUSERS_BASIC = {
+    "img_in": "first",
+    "time_embed.linear_1": "tmlp.0",
+    "time_embed.linear_2": "tmlp.2",
+    "time_mod_proj": "tproj.1",
+    "txt_in.linear_1": "txtmlp.1",
+    "txt_in.linear_2": "txtmlp.3",
+    "text_fusion.projector": "txtfusion.projector",
+    "final_layer.linear": "last.linear",
+}
+
+
+def _build_krea2_alias_map(max_blocks=128, max_txt_blocks=8):
+    """{normalised diffusers sig: normalised ComfyUI sig}. Keyed on _norm_key,
+    so dotted (diffusers) and underscored (kohya/lycoris) spellings of the same
+    key both land on the same entry."""
+    amap = {}
+    for d, c in _KREA2_DIFFUSERS_BASIC.items():
+        amap[_norm_key(d)] = _norm_key(c)
+    for stem_d, stem_c in _KREA2_DIFFUSERS_STEMS.items():
+        n = max_blocks if stem_d == "transformer_blocks" else max_txt_blocks
+        for i in range(n):
+            for d, c in _KREA2_DIFFUSERS_LEAF.items():
+                amap[_norm_key("{}.{}.{}".format(stem_d, i, d))] = \
+                    _norm_key("{}.{}.{}".format(stem_c, i, c))
+    return amap
+
+
+_KREA2_ALIASES = _build_krea2_alias_map()
+
+
+def _module_sig(base):
+    """Normalised signature for a LoRA module path, with diffusers-style Krea 2
+    names translated onto their ComfyUI module names."""
+    sig = _norm_key(base)
+    return _KREA2_ALIASES.get(sig, sig)
+
+
 def _load_lora_matrices(path):
     """{ module_sig: entry } in fp32 on CPU.
     LoRA entry: {'kind':'lora', 'down':T, 'up':T, 'scale':float}
@@ -180,13 +245,16 @@ def _load_lora_matrices(path):
             continue
 
     out = {}
+    n_aliased = 0
     for base, mats in groups.items():
         if "down" not in mats or "up" not in mats:
             continue
         down, up = mats["down"], mats["up"]
         rank = down.shape[0]
         alpha = alphas.get(base, alphas.get(base + ".alpha", float(rank)))
-        out[_norm_key(base)] = {
+        sig = _module_sig(base)
+        n_aliased += (sig != _norm_key(base))
+        out[sig] = {
             "kind": "lora",
             "down": down,
             "up": up,
@@ -220,12 +288,17 @@ def _load_lora_matrices(path):
             continue
         alpha = alphas.get(base, None)
         scale = (alpha / dim) if (alpha is not None and dim is not None) else 1.0
-        out[_norm_key(base)] = {
+        sig = _module_sig(base)
+        n_aliased += (sig != _norm_key(base))
+        out[sig] = {
             "kind": "lokr",
             "w1": w1,
             "w2": w2,
             "scale": float(scale),
         }
+    if n_aliased:
+        logging.info("[Krea2RegionalMultiLoRA] '%s': translated %d/%d diffusers-style "
+                     "keys to ComfyUI module names.", path, n_aliased, len(out))
     return out
 
 
@@ -338,7 +411,10 @@ class _RegionalSession:
                          ridx, count, targets)
             if count == 0 and targets > 0:
                 logging.warning("[Krea2RegionalMultiLoRA] region %d matched 0 layers - "
-                                "LoRA key format may not map onto this model.", ridx)
+                                "LoRA key format may not map onto this model. "
+                                "LoRA sigs e.g. %s | model sigs e.g. %s", ridx,
+                                sorted(self.region_loras[ridx])[:3],
+                                [_norm_key(n) for n, _ in _iter_named_linears(dm)][:3])
         return layer_map
 
     def _infer_device(self, dm, args):

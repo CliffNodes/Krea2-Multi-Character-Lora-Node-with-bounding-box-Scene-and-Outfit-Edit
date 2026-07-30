@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-krea2-regional-multilora"
-description = "Krea2 Regional Multi-LoRA (By Fedor) - constrain each character LoRA to its own bounding box via masked activation-delta injection."
-version = "1.0.0"
+description = "Krea2 Regional Multi-LoRA (By Fedor) - multiple character LoRAs in one image, each locked to its own bounding box. V12: unified spatial routing (boxes control placement and size), scene/outfit transfer via krea2edit, and a face/body detailer pass."
+version = "2.0.0"
 license = { file = "LICENSE" }
 requires-python = ">=3.9"
 authors = [{ name = "Fedor" }]
@@ -11,7 +11,7 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/CliffNodes/Krea2-Multi-Character-Lora-Node-w-bounding-box-By-Fedor"
+Repository = "https://github.com/CliffNodes/Krea2-Multi-Character-Lora-Node-w-bounding-box"
 
 [tool.comfy]
 PublisherId = "CliffNodes"

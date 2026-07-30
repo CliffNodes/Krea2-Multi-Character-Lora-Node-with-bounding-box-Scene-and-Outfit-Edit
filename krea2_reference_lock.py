@@ -61,7 +61,13 @@ def _encode_reference(model_clone, vae, image):
 def _build_mold(ref_model_space, box, C, H, W, feather, device):
     """Return (mold[1,C,H,W], mask[1,1,H,W]) placing the resized reference latent
     inside the box, else None on a channel mismatch / degenerate box."""
-    ref = ref_model_space
+    # vae.encode returns Krea2's 5D (B,C,1,H,W) just like the sampled latent, but
+    # the fit below is a 2D interpolate — drop the temporal axis first.
+    ref, _ = _denoised_as_4d(ref_model_space)
+    if ref is None:
+        logging.warning("[Krea2ReferenceLock] ref latent shape %s is not (B,C,H,W) or "
+                        "(B,C,1,H,W); skipping mold.", tuple(ref_model_space.shape))
+        return None
     if ref.shape[1] != C:
         logging.warning("[Krea2ReferenceLock] ref latent has %d channels, latent has %d; skipping.",
                         ref.shape[1], C)
@@ -91,6 +97,27 @@ def _in_window(sigma, sigma_start, sigma_end):
     sv = float(sigma.max().item()) if torch.is_tensor(sigma) else float(sigma)
     # sigma runs high -> low; window is [sigma_end, sigma_start].
     return not (sv > sigma_start + 1e-9 or sv < sigma_end - 1e-9)
+
+
+def _denoised_as_4d(denoised):
+    """Krea2 sampling uses 5D latents (B,C,1,H,W); mold ops expect 4D."""
+    if denoised.dim() == 4:
+        return denoised, lambda t: t
+    if denoised.dim() == 5 and denoised.shape[2] == 1:
+        return denoised.squeeze(2), lambda t: t.unsqueeze(2)
+    return None, None
+
+
+def _blend_ref_molds(denoised, built, strength):
+    """Apply one or more (mold, mask) pairs to denoised; passthrough if unsupported."""
+    d4, restore = _denoised_as_4d(denoised)
+    if d4 is None or not built:
+        return denoised
+    d32 = d4.float()
+    w = float(strength)
+    for mold, mask in built:
+        d32 = d32 + (w * mask) * (mold - d32)
+    return restore(d32.to(denoised.dtype))
 
 
 _COMMON_WINDOW_INPUTS = {
@@ -136,7 +163,7 @@ class Krea2ReferenceLock:
         return {
             "required": req,
             "optional": {
-                "bboxes": ("BOUNDING_BOX", {"tooltip": "Boxes from the same builder feeding the MultiLoRA node."}),
+                "bboxes": ("BOUNDING_BOX", {"forceInput": True, "tooltip": "Boxes from the same builder feeding the MultiLoRA node."}),
                 "box_index": ("INT", {"default": 0, "min": 0, "max": 63,
                                       "tooltip": "Which wired box this reference locks onto (0-based)."}),
                 "box_x0": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01,
@@ -188,11 +215,12 @@ class Krea2ReferenceLock:
 
         def post_cfg(args):
             denoised = args["denoised"]
-            if denoised.dim() != 4 or not _in_window(args["sigma"], sigma_start, sigma_end):
+            d4, _ = _denoised_as_4d(denoised)
+            if d4 is None or not _in_window(args["sigma"], sigma_start, sigma_end):
                 return denoised
-            C, H, W = denoised.shape[1], denoised.shape[2], denoised.shape[3]
+            C, H, W = d4.shape[1], d4.shape[2], d4.shape[3]
             if state["key"] != (C, H, W):
-                state["mm"] = _build_mold(ref_ms, box, C, H, W, fth, denoised.device)
+                state["mm"] = _build_mold(ref_ms, box, C, H, W, fth, d4.device)
                 state["key"] = (C, H, W)
                 if state["mm"] is not None and not state["logged"]:
                     logging.info("[Krea2ReferenceLock] mold armed: latent %dx%d box=%s "
@@ -202,8 +230,7 @@ class Krea2ReferenceLock:
             if state["mm"] is None:
                 return denoised
             mold, mask = state["mm"]
-            d32 = denoised.float()
-            return (d32 + (w * mask) * (mold - d32)).to(denoised.dtype)
+            return _blend_ref_molds(denoised, [(mold, mask)], w)
 
         m.set_model_sampler_post_cfg_function(post_cfg)
         return (m,)
@@ -225,6 +252,7 @@ class Krea2ReferenceLockMulti:
             "required": req,
             "optional": {
                 "bboxes": ("BOUNDING_BOX", {
+                    "forceInput": True,  # keep socket-only; frontend widget group corrupts saves
                     "tooltip": "Boxes from the same builder feeding the MultiLoRA node. "
                                "reference_i maps to box i.",
                 }),
@@ -290,13 +318,14 @@ class Krea2ReferenceLockMulti:
 
         def post_cfg(args):
             denoised = args["denoised"]
-            if denoised.dim() != 4 or not _in_window(args["sigma"], sigma_start, sigma_end):
+            d4, _ = _denoised_as_4d(denoised)
+            if d4 is None or not _in_window(args["sigma"], sigma_start, sigma_end):
                 return denoised
-            C, H, W = denoised.shape[1], denoised.shape[2], denoised.shape[3]
+            C, H, W = d4.shape[1], d4.shape[2], d4.shape[3]
             if state["key"] != (C, H, W):
                 built = []
                 for box, ref_ms in entries:
-                    mm = _build_mold(ref_ms, box, C, H, W, fth, denoised.device)
+                    mm = _build_mold(ref_ms, box, C, H, W, fth, d4.device)
                     if mm is not None:
                         built.append(mm)
                 state["built"] = built
@@ -306,12 +335,7 @@ class Krea2ReferenceLockMulti:
                                  "window sigma %.4f->%.4f strength %.2f",
                                  len(built), W, H, sigma_start, sigma_end, w)
                     state["logged"] = True
-            if not state["built"]:
-                return denoised
-            d32 = denoised.float()
-            for mold, mask in state["built"]:
-                d32 = d32 + (w * mask) * (mold - d32)
-            return d32.to(denoised.dtype)
+            return _blend_ref_molds(denoised, state["built"], w)
 
         m.set_model_sampler_post_cfg_function(post_cfg)
         return (m,)

@@ -10,6 +10,91 @@ And it isn't just for LoRAs: paired with the Ideogram 4-style prompt builder, yo
 
 ---
 
+## NEW in V12 — Unified Spatial: boxes control placement, scene & outfit transfer, face/body detailer
+
+V12 is a new node (`Krea2 Regional Multi-LoRA V12`) that keeps everything v1/v3 guaranteed — hard LoRA-to-box masking — and adds the three things people kept asking for:
+
+1. **Boxes now control WHERE and HOW LARGE each subject renders**, not just where its LoRA may act.
+2. **Scene transfer and outfit transfer** — drop your LoRA characters into any real photo, or dress them from a second photo, **using only the standard identity edit LoRA**. No per-character reference photos, no portrait pre-renders.
+3. **An optional Regional Detailer node** that re-renders each subject's body and face at high resolution with its own LoRA for maximum likeness.
+
+The V12 example workflow is at `example_workflows/krea2_regional_multilora_v12.json`. Full version history is in [CHANGELOG.md](CHANGELOG.md).
+
+### What V12 actually does (technical)
+
+**One caption, exact token spans.** Your box-builder prompt is recompiled into a single scene-wide caption. For each box, V12 resolves the *exact Qwen token span* of that region's subject clause — including the offset math needed to find the caption inside Krea 2's grounded encoding, where hundreds of vision tokens precede your text. Everything downstream operates on real token positions, not approximations.
+
+**Hard cross-modal ownership (fused block-sparse attention).** A FlexAttention block mask partitions attention so each region's text span has *exclusive* ownership of a field inside its box: subject A's tokens structurally cannot influence subject B's pixels, and B's pixels cannot read A's text. This is a hard block, not a bias nudge — the same philosophy as v1's activation masking, applied to attention routing. It is the main cure for identity bleeding between adjacent boxes.
+
+**Attraction field.** Blocking only *prevents* leakage — nothing pulls a subject into its box, so the model would still place people at its preferred composition. V12 adds a pre-softmax logit boost that binds each regional span to its full box, so subjects materialize inside their boxes.
+
+**Box-authoritative framing.** The caption's camera sentence is derived from the largest active box height, and close-up wording that contradicts small boxes (e.g. "selfie" with knee-high boxes) is rewritten automatically. The result: a tall box gives you a large foreground subject, a small box gives you a distant full-body subject. Box size is the framing contract.
+
+**Masks that forgive, but never bleed.** LoRA delta masks extend past the box edge in a soft "skirt" (35% of box size) so a subject that slightly overflows keeps full identity — but each skirt is Voronoi-limited to halfway across the gap toward any neighboring box, so skirts can never cause cross-identity bleed. Feathering is capped per box (30% of the box's smaller side), so even tiny boxes keep a full-strength LoRA core. Where masks overlap, the stronger region wins outright instead of identities summing.
+
+### Scene transfer — only the edit LoRA required
+
+Wire any photo into `extra_ref_1`. The image is *generated from noise* with your photo as a krea2edit reference frame — so lighting, perspective, shadows and reflections integrate naturally. This is not latent pasting; your characters can lean on the furniture.
+
+- `edit_lora`: the standard Krea 2 identity edit LoRA. That is the **only** extra model needed.
+- Character likeness comes entirely from your per-region character LoRAs, exactly as before.
+- `refs_json` row 1 stays `{"role":"scene"}` (the default).
+
+### Outfit / object transfer
+
+Wire a second photo into `extra_ref_2` with a full-canvas box (`0,0,1,1`) and describe its role in `refs_json`:
+
+```json
+[{"role":"scene"},
+ {"role":"object","note":"outfit, worn by the woman"}]
+```
+
+The plate becomes its own reference frame and the node writes the referring text ("the outfit from the third reference") with the correct frame number automatically. Roles: `auto | scene | person | object | style`. The `note` is "noun, where it goes".
+
+### Regional Detailer (optional but recommended)
+
+`Krea2 Regional Detailer` sits between `VAEDecode` and `SaveImage` (already wired in the example workflow):
+
+- **Body pass**: crops each subject's box with context, upscales it, and re-renders it img2img with that region's own LoRA.
+- **Face pass**: detects the *actual* faces in the final image (YOLOv8 `face_yolov8m.pt` if you have it, OpenCV Haar fallback), assigns each face to its region one-to-one by proximity, and re-renders each face at high resolution with the correct LoRA — *wherever the face actually rendered*. Even a subject that drifted across its box seam gets its identity restored in place.
+- Feathered paste-back, pixel budget capped, `skip_above_px` lets you refine only small/distant subjects.
+
+Cost: roughly 40–60 s for two subjects (8 steps each pass) on top of the main generation.
+
+### How to use the V12 workflow, step by step
+
+Load `example_workflows/krea2_regional_multilora_v12.json`. Every input on the nodes has a hover tooltip explaining what it does — hover anything you're unsure about.
+
+1. **Models**: `krea2_turbo_bf16.safetensors` (UNET), `qwen3vl_4b_bf16.safetensors` (CLIP, type `krea2`), `qwen_image_vae.safetensors` (VAE), and the Krea 2 identity edit LoRA in the V12 node's `edit_lora` slot.
+2. **Scene photo**: load your scene into the `LoadImage` wired to `extra_ref_1`. (To generate without a scene, disconnect it and set `use_krea2edit` off.)
+3. **Prompt**: in the box builder, describe the overall scene and what the people are doing — *"man and woman standing in a modern kitchen, posing for a photo together, the man has his arm around the woman"*. Keep `background is from reference photo 1` when using a scene photo. Interactions between subjects (arm around, holding hands) belong here.
+4. **Boxes**: draw one box per character, sized like the person should appear — tall box = close/large subject, small box = distant subject. Give each box a short generic description ("man", "woman"). Don't overlap boxes; leave a small gap.
+5. **Regions**: in the V12 node, each row pairs with its box in order. Pick each row's character LoRA and strength (start at **1.3–1.4**, with `base_strength` 1.1). Row prompts stay short and generic ("a man"); the identity comes from the LoRA, not the words.
+6. **Outfit transfer (optional)**: load the outfit photo into the `LoadImage` wired to `extra_ref_2` and keep the `refs_json` object role. Remove/disconnect it if unused.
+7. **Sampler**: `euler` / `simple`, 8–12 steps, **CFG 1.0** (already set).
+8. **Detailer**: leave `enable` on for the extra face/body pass, or turn it off to A/B its effect. If furniture inside the boxes gets re-textured, lower `body_denoise` to ~0.20 — the face pass carries the identity work.
+9. **Queue.** First V12 run compiles the fused attention kernel (~1 min one-time overhead per session); subsequent runs are fast.
+
+### V12 knobs worth knowing
+
+| Knob | Default | What it does |
+|------|---------|--------------|
+| `base_strength` | 1.1 | Global multiplier on all region strengths. |
+| `grounding_px` | 1024 | Vision-grounding resolution for the scene photo. |
+| `edit_lora_strength` | 0.68 | Edit LoRA weight. Raise region strengths → lower this. |
+| `ref_max_side` | 0 (native) | Main speed knob: downscales reference frames before encoding. Raise likeness by keeping 0; gain speed by setting ~1024. |
+| `blend_override` | 0 | Leave at 0 — anything higher blends LoRAs canvas-wide. |
+| Detailer `body_denoise` / `face_denoise` | 0.30 / 0.40 | 0 disables that pass. |
+| Detailer `lora_scale` | 0.70 | Region strength × this for refinement passes (full-model patch runs hotter than delta injection). |
+
+### V12 requirements
+
+- Recent PyTorch with FlexAttention (`torch >= 2.5`; tested on 2.11) and a working `torch.compile` (Triton). If you already run sage attention, you have this.
+- Optional, for best face detection in the Detailer: `pip install ultralytics` and `face_yolov8m.pt` in `ComfyUI/models/ultralytics/bbox/` (the standard ADetailer face model). Without it, an OpenCV fallback is used.
+- Everything else is inherited from the base package (torch, safetensors — no other custom-node dependencies).
+
+---
+
 ## NEW in v3 — Reference Lock: per-region reference images
 
 ### Why v3 exists
@@ -157,13 +242,16 @@ So the workflow is a single, unified layout tool: sketch the whole scene as boxe
 
 ```bash
 cd ComfyUI/custom_nodes
-git clone https://github.com/CliffNodes/Krea2-Multi-Character-Lora-Node-w-bounding-box-By-Fedor.git
+git clone https://github.com/CliffNodes/Krea2-Multi-Character-Lora-Node-w-bounding-box.git
 ```
 
 Restart ComfyUI. The nodes appear under the `Krea2/By Fedor` category:
 
-- **Krea2 Regional Multi-LoRA** — v1, LoRA masking only (stable).
-- **Krea2 Regional Multi-LoRA v3 + Ref Lock** — LoRA masking + per-region reference images (recommended).
+- **Krea2 Regional Multi-LoRA V12 (Unified Spatial)** — boxes control placement and size, scene/outfit transfer, hard attention ownership (recommended).
+- **Krea2 Regional Detailer** — optional face/body refinement pass for V12 outputs.
+- **Krea2 Regional Multi-LoRA v9** — the krea2edit engine V12 builds on (V12 without the unified spatial routing).
+- **Krea2 Regional Multi-LoRA v3 + Ref Lock** — LoRA masking + per-region reference images.
+- **Krea2 Regional Multi-LoRA** — v1, LoRA masking only (stable, minimal).
 - **Krea2 Reference Lock / Reference Lock — Multi** — standalone reference steering (v2, for custom wiring).
 
 **Requirements:**
@@ -184,6 +272,7 @@ All from the Krea 2 release:
 | UNETLoader | `krea2_turbo_bf16.safetensors` (or `krea2_bf16.safetensors`) |
 | CLIPLoader (type `krea2`) | `qwen3vl_4b_bf16.safetensors` |
 | VAELoader | `qwen_image_vae.safetensors` |
+| V12 node `edit_lora` slot | the Krea 2 identity edit LoRA (only needed for scene/outfit transfer) |
 
 Your **character LoRAs must be trained against Krea 2**. The reference trainer is [ai-toolkit](https://github.com/ostris/ai-toolkit). FLUX or Ideogram LoRAs will load without erroring but produce poor likeness — the attention dimensions don't line up.
 

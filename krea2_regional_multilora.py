@@ -30,6 +30,7 @@ import json
 import logging
 import math
 import re
+import weakref
 
 import torch
 import safetensors.torch
@@ -244,7 +245,13 @@ def _resolve_lora_path(name):
 # token-grid masks
 # ---------------------------------------------------------------------------
 def _rect_token_mask(rows, cols, nx0, ny0, nx1, ny1, feather):
-    """Soft-edged rectangle (normalised coords) on the rows x cols token grid."""
+    """Soft-edged rectangle (normalised coords) on the rows x cols token grid.
+
+    Symmetric sigmoid: 0.5 exactly ON the edge, with tails reaching outside the
+    box. Kept as-is for the MASK outputs and the multipass border rings, which
+    subtract two of these and rely on the overlap. For LoRA deltas use
+    _rect_token_mask_inward — see the leak note there.
+    """
     c0, c1 = nx0 * cols, nx1 * cols
     r0, r1 = ny0 * rows, ny1 * rows
     fc = max(1e-3, feather * cols)
@@ -253,6 +260,40 @@ def _rect_token_mask(rows, cols, nx0, ny0, nx1, ny1, feather):
     rr = torch.arange(rows, dtype=torch.float32).unsqueeze(1)
     in_x = torch.sigmoid((cc - c0) / fc) * torch.sigmoid((c1 - cc) / fc)
     in_y = torch.sigmoid((rr - r0) / fr) * torch.sigmoid((r1 - rr) / fr)
+    return (in_y * in_x).reshape(-1).clamp(0.0, 1.0)
+
+
+def _rect_token_mask_inward(rows, cols, nx0, ny0, nx1, ny1, feather):
+    """Same rectangle, but the feather ramps INWARD only.
+
+    Exactly 0 at and outside the box edge, rising to 1 inside it. The sigmoid
+    version sits at 0.5 on the edge and decays slowly outward, and its width
+    scales with the token grid, so on a wide canvas a region's LoRA delta lands
+    well inside its neighbour's box: measured on a 140x79 grid with
+    feather=0.05 and two side-by-side boxes 3.8 columns apart, each identity
+    reached 0.38 weight (effective strength 0.60) across ~21% of the other
+    box's tokens. That is cross-identity bleed with no way to tune it out --
+    lowering the feather sharpens the edge but never confines it.
+
+    _clip_mask_to_box already guards the photo-mold masks against exactly this
+    ("so it can only feather INWARD"); the token masks never got the same
+    treatment. smoothstep is used rather than a hard clamp so the value AND its
+    slope are continuous at the edge -- confining the mask must not trade bleed
+    for a visible seam.
+
+    The ramp is capped at half the box so a small box still reaches full
+    strength at its centre instead of being silently attenuated.
+    """
+    c0, c1 = nx0 * cols, nx1 * cols
+    r0, r1 = ny0 * rows, ny1 * rows
+    fc = max(1e-3, min(feather * cols, max(1e-3, 0.5 * (c1 - c0))))
+    fr = max(1e-3, min(feather * rows, max(1e-3, 0.5 * (r1 - r0))))
+    cc = torch.arange(cols, dtype=torch.float32).unsqueeze(0)
+    rr = torch.arange(rows, dtype=torch.float32).unsqueeze(1)
+    tx = (torch.minimum(cc - c0, c1 - cc) / fc).clamp(0.0, 1.0)
+    ty = (torch.minimum(rr - r0, r1 - rr) / fr).clamp(0.0, 1.0)
+    in_x = tx * tx * (3.0 - 2.0 * tx)
+    in_y = ty * ty * (3.0 - 2.0 * ty)
     return (in_y * in_x).reshape(-1).clamp(0.0, 1.0)
 
 
@@ -302,7 +343,13 @@ class _RegionalSession:
 
     def __init__(self, patcher, region_loras, norm_boxes, seam_feather,
                  blend_override, canvas_w, canvas_h):
-        self.patcher = patcher
+        # Weakref: the session lives inside the patcher's model options, and a
+        # strong back-reference creates a cycle that pins the UNet until a full
+        # gc pass (ComfyUI logs "Potential memory leak with model Krea2").
+        # The patcher is only needed while sampling runs, when it is alive.
+        self._patcher_ref = (
+            weakref.ref(patcher) if patcher is not None else (lambda: None)
+        )
         self.region_loras = region_loras      # [{sig: {down,up,scale}}] per region
         self.norm_boxes = norm_boxes          # [(x0,y0,x1,y1)] per region
         self.seam_feather = seam_feather
@@ -315,8 +362,17 @@ class _RegionalSession:
         self._full_mask_cache = {}
         self._masks_d = []
 
+    @property
+    def patcher(self):
+        return self._patcher_ref()
+
     def _diffusion_model(self):
-        m = self.patcher.model
+        patcher = self._patcher_ref()
+        if patcher is None:
+            raise RuntimeError(
+                "[Krea2RegionalMultiLoRA] session outlived its model patcher"
+            )
+        m = patcher.model
         return getattr(m, "diffusion_model", m)
 
     def _build_layer_map(self, dm):
@@ -331,7 +387,9 @@ class _RegionalSession:
                     entries.append((ridx, d))
                     matched_per_region[ridx] += 1
             if entries:
-                layer_map[name] = (mod, entries)
+                # Weakref: strong Linear references from a session cached in a
+                # node output would pin the whole UNet after its patchers die.
+                layer_map[name] = (weakref.ref(mod), entries)
         for ridx, count in enumerate(matched_per_region):
             targets = len(self.region_loras[ridx])
             logging.info("[Krea2RegionalMultiLoRA] region %d: matched %d/%d LoRA layers.",
@@ -365,7 +423,10 @@ class _RegionalSession:
         n_regions = len(self.norm_boxes)
         masks = []
         for (x0, y0, x1, y1) in self.norm_boxes:
-            masks.append(_rect_token_mask(rows, cols, x0, y0, x1, y1, self.seam_feather))
+            # Inward feather: a LoRA delta must not reach outside its own box.
+            masks.append(
+                _rect_token_mask_inward(rows, cols, x0, y0, x1, y1,
+                                        self.seam_feather))
         blend = float(max(0.0, min(1.0, self.blend_override)))
         if blend > 0.0 and n_regions > 0:
             uniform = 1.0 / n_regions
@@ -375,7 +436,7 @@ class _RegionalSession:
     def _prepare(self, dev, x):
         cdt = _COMPUTE_DTYPE
         self._dev = dev
-        for name, (mod, entries) in self._layer_map.items():
+        for name, (_mod_ref, entries) in self._layer_map.items():
             for ridx, d in entries:
                 if "down_d" in d or "w1_d" in d:
                     continue
@@ -444,14 +505,36 @@ class _RegionalSession:
             logging.info("[Krea2RegionalMultiLoRA] prepared on %s | latent=%s "
                          "grid=%dx%d (%s) n_img=%d regions=%d",
                          dev, shp, rows, cols, src, self.n_img, len(self._masks_d))
+        layers = self._live_layers(dm)
         handles = []
         try:
-            for name, (mod, entries) in self._layer_map.items():
+            for mod, entries in layers:
                 handles.append(mod.register_forward_hook(_make_hook(self, entries)))
             return executor(*args, **kwargs)
         finally:
             for h in handles:
                 h.remove()
+
+    def _live_layers(self, dm):
+        """Dereference the weak layer map; rebuild once if the model was
+        replaced since this session was prepared."""
+        layers = []
+        for name, (mod_ref, entries) in self._layer_map.items():
+            mod = mod_ref()
+            if mod is None:
+                self._layer_map = self._build_layer_map(dm)
+                layers = []
+                for _name, (ref, ents) in self._layer_map.items():
+                    live = ref()
+                    if live is None:
+                        raise RuntimeError(
+                            "[Krea2RegionalMultiLoRA] model modules vanished "
+                            "during layer-map rebuild"
+                        )
+                    layers.append((live, ents))
+                return layers
+            layers.append((mod, entries))
+        return layers
 
 
 # ---------------------------------------------------------------------------
@@ -509,6 +592,7 @@ class Krea2RegionalMultiLoRA:
             },
             "optional": {
                 "bboxes": ("BOUNDING_BOX", {
+                    "forceInput": True,  # keep socket-only; frontend widget group corrupts saves
                     "tooltip": "Bounding boxes from a box builder (e.g. Ideogram4PromptBuilderKJ). Used when split_mode=bbox.",
                 }),
                 "base_strength": ("FLOAT", {

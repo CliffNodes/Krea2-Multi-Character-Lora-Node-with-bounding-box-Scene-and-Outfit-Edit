@@ -1,0 +1,1390 @@
+{
+  "id": "krea-multilora-v12-unified",
+  "revision": 5,
+  "last_node_id": 103,
+  "last_link_id": 37,
+  "nodes": [
+    {
+      "id": 2,
+      "type": "CLIPLoader",
+      "pos": [
+        -2591.103100528074,
+        -293.0006035210804
+      ],
+      "size": [
+        360,
+        106
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            2
+          ]
+        }
+      ],
+      "title": "2. Qwen3-VL (krea2)",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "CLIPLoader",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "qwen3vl_4b_bf16.safetensors",
+        "krea2",
+        "default"
+      ],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 3,
+      "type": "VAELoader",
+      "pos": [
+        -2587.930578754367,
+        -146.74864970344538
+      ],
+      "size": [
+        360,
+        58
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            18,
+            20,
+            34
+          ]
+        }
+      ],
+      "title": "3. VAE",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "VAELoader",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "qwen_image_vae.safetensors"
+      ],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 90,
+      "type": "Note",
+      "pos": [
+        -3085.540255262141,
+        -435.60727280892115
+      ],
+      "size": [
+        440,
+        480
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "README -- V12 UNIFIED SPATIAL",
+      "properties": {
+        "Node name for S&R": "Note",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "V12 UNIFIED SPATIAL -- quick start\n================================================================\nBoxes control WHERE each subject renders, HOW LARGE it appears, and\nwhich character LoRA owns it. Hover any input for a tooltip.\n\n1. Load the three Krea 2 models (UNet / Qwen3-VL CLIP / VAE) and put the\n   Krea 2 identity edit LoRA in the V12 node's edit_lora slot.\n2. Scene photo: load any photo into the LoadImage wired to extra_ref_1.\n   Your characters are GENERATED INTO that scene (lighting and\n   perspective integrate naturally -- this is not a paste).\n3. Prompt: describe the scene and what the people are doing. Keep\n   \"background is from reference photo 1\" when using a scene photo.\n   Interactions (\"arm around\", \"holding hands\") go here.\n4. Draw one box per character, sized like the person should appear:\n   tall box = close/large subject, small box = distant subject.\n   Short generic box descriptions (\"man\", \"woman\"). Don't overlap.\n5. In the V12 node: pick each row's character LoRA. Strength 1.3-1.4,\n   base_strength 1.1. Region prompts stay short (\"a man\") -- identity\n   comes from the LoRA. Portraits stay OFF.\n6. Optional outfit transfer: load a clothing photo into the LoadImage\n   wired to extra_ref_2 (it is muted by default -- unmute to use) and\n   keep the refs_json role: {\"role\":\"object\",\"note\":\"outfit, worn by\n   the woman\"}.\n7. Detailer: leave enabled for an extra per-subject face + body pass\n   with each region's own LoRA. If furniture inside boxes changes,\n   lower body_denoise to ~0.20.\n8. Sampler is preset for Krea 2 Turbo: euler / 12 steps / CFG 1.\n   First run compiles the fused attention kernel (~1 min, once per\n   session).\n\nIf likeness is weak: raise the row strength before anything else.\nIf identities mix: check box order matches row order, and keep\nblend_override at 0."
+      ],
+      "color": "#444",
+      "bgcolor": "#222"
+    },
+    {
+      "id": 1,
+      "type": "UNETLoader",
+      "pos": [
+        -2597.448337716759,
+        -418.19508235435876
+      ],
+      "size": [
+        360,
+        82
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "title": "1. Krea 2 Turbo UNet (bf16)",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "UNETLoader",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "krea2_turbo_bf16.safetensors",
+        "default"
+      ],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 83,
+      "type": "LoadImage",
+      "pos": [
+        -2173.4457565748776,
+        -422.9718566038812
+      ],
+      "size": [
+        510.2603515625,
+        320
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            26
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": []
+        }
+      ],
+      "title": "SCENE PHOTO (characters are generated into this)",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "LoadImage",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "scene_reference.png",
+        "image"
+      ],
+      "color": "#264",
+      "bgcolor": "#153"
+    },
+    {
+      "id": 81,
+      "type": "SaveImage",
+      "pos": [
+        1920.0249049149982,
+        -407.0112428853193
+      ],
+      "size": [
+        458.25798987421695,
+        485.7380644153204
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 36
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "title": "12. Save",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "SaveImage",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "Krea2_MultiLoRA_V12"
+      ],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 80,
+      "type": "VAEDecode",
+      "pos": [
+        1669.256812847446,
+        -343.0885877043119
+      ],
+      "size": [
+        220,
+        46
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 17
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 18
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            31
+          ]
+        }
+      ],
+      "title": "11. Decode",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "VAEDecode",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 82,
+      "type": "PreviewImage",
+      "pos": [
+        1208.1481394747557,
+        -381.1073133169431
+      ],
+      "size": [
+        427.5892789151444,
+        435.55159449385496
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 25
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "title": "13. Reference portraits (preview only, not saved)",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "PreviewImage",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 60,
+      "type": "EmptySD3LatentImage",
+      "pos": [
+        469.16454508175065,
+        -446.16114537557297
+      ],
+      "size": [
+        280,
+        106
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": 11
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": 12
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            16
+          ]
+        }
+      ],
+      "title": "9. Latent (SD3/16-ch, auto-sized)",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "EmptySD3LatentImage",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "width": true,
+            "height": true,
+            "batch_size": true
+          },
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        1536,
+        1024,
+        1
+      ],
+      "color": "#226",
+      "bgcolor": "#114"
+    },
+    {
+      "id": 70,
+      "type": "KSampler",
+      "pos": [
+        475.02834988473677,
+        -276.6155682027236
+      ],
+      "size": [
+        557.4608190798808,
+        680.2381156882614
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 13
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 14
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 15
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 16
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            17
+          ]
+        }
+      ],
+      "title": "10. KSampler (euler / normal / 12 / CFG 1)",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "KSampler",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        761809200623510,
+        "randomize",
+        12,
+        1,
+        "euler",
+        "normal",
+        1
+      ],
+      "color": "#262",
+      "bgcolor": "#040"
+    },
+    {
+      "id": 5,
+      "type": "Power Lora Loader (rgthree)",
+      "pos": [
+        -1612.388846835144,
+        -455.9800564333747
+      ],
+      "size": [
+        360,
+        382
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "dir": 3,
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        },
+        {
+          "dir": 3,
+          "name": "clip",
+          "type": "CLIP",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "dir": 4,
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            3,
+            32
+          ]
+        },
+        {
+          "dir": 4,
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            4,
+            33
+          ]
+        }
+      ],
+      "title": "4. Global LoRAs (Power Lora Loader)",
+      "properties": {
+        "cnr_id": "rgthree-comfy",
+        "ver": "738105af5fb14e96fbecaf406dc356e284797e8c",
+        "Show Strengths": "Single Strength",
+        "Match": "",
+        "Node name for S&R": "Power Lora Loader (rgthree)",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        {},
+        {
+          "type": "PowerLoraLoaderHeaderWidget"
+        },
+        {},
+        ""
+      ],
+      "color": "#432",
+      "bgcolor": "#210"
+    },
+    {
+      "id": 84,
+      "type": "LoadImage",
+      "pos": [
+        -2172.704717477455,
+        -37.238671767867324
+      ],
+      "size": [
+        519.4586837760565,
+        497.8588918584268
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 4,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            27
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": []
+        }
+      ],
+      "title": "Ref 2 (optional, e.g. outfit) -- MUTED",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "LoadImage",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "outfit_reference.png",
+        "image"
+      ],
+      "color": "#345",
+      "bgcolor": "#123"
+    },
+    {
+      "id": 20,
+      "type": "Ideogram4PromptBuilderKJ",
+      "pos": [
+        -881.8967348619037,
+        -448.6468507201369
+      ],
+      "size": [
+        520,
+        390
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "size_width",
+          "shape": 7,
+          "type": "INT",
+          "link": 29
+        },
+        {
+          "name": "size_height",
+          "shape": 7,
+          "type": "INT",
+          "link": 30
+        },
+        {
+          "name": "import_json",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        },
+        {
+          "name": "bboxes",
+          "shape": 7,
+          "type": "BOUNDING_BOX",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            28
+          ]
+        },
+        {
+          "name": "preview",
+          "type": "IMAGE",
+          "links": []
+        },
+        {
+          "name": "bboxes",
+          "type": "BOUNDING_BOX",
+          "links": [
+            5
+          ]
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": [
+            6,
+            11
+          ]
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": [
+            7,
+            12
+          ]
+        }
+      ],
+      "title": "5. Draw one box per character (order = region order)",
+      "properties": {
+        "cnr_id": "comfyui_fearnworksnodes",
+        "ver": "0.1.2",
+        "Node name for S&R": "Ideogram4PromptBuilderKJ",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        },
+        "dockPinned": true,
+        "dockGraph": {
+          "x": 0,
+          "y": 402,
+          "w": 560,
+          "h": 614
+        },
+        "docked": true,
+        "dockMin": false,
+        "liveBg": true,
+        "guide": "none"
+      },
+      "widgets_values": [
+        1584,
+        896,
+        "man and woman standing in a modern kitchen, posing for a photo together, the man has his arm around the woman",
+        "background is from reference photo 1",
+        "none",
+        "",
+        "",
+        "",
+        "",
+        "[{\"x\":0.02,\"y\":0.143,\"w\":0.36,\"h\":0.708,\"type\":\"obj\",\"text\":\"\",\"desc\":\"man\",\"palette\":[]},{\"x\":0.4,\"y\":0.167,\"w\":0.32,\"h\":0.691,\"type\":\"obj\",\"text\":\"\",\"desc\":\"woman\",\"palette\":[]}]",
+        25,
+        "when empty",
+        "compact",
+        ""
+      ],
+      "color": "#226",
+      "bgcolor": "#114",
+      "ideo": {
+        "boxes": [
+          {
+            "x": 0.02,
+            "y": 0.143,
+            "w": 0.36,
+            "h": 0.708,
+            "type": "obj",
+            "text": "",
+            "desc": "man",
+            "palette": []
+          },
+          {
+            "x": 0.4,
+            "y": 0.167,
+            "w": 0.32,
+            "h": 0.691,
+            "type": "obj",
+            "text": "",
+            "desc": "woman",
+            "palette": []
+          }
+        ],
+        "palette": [],
+        "importMode": "when empty",
+        "outputFormat": "compact",
+        "dock": {
+          "pinned": true,
+          "graph": {
+            "x": 0,
+            "y": 402,
+            "w": 560,
+            "h": 614
+          },
+          "panelH": 150,
+          "min": false
+        }
+      }
+    },
+    {
+      "id": 100,
+      "type": "Krea2RegionalMultiLoRAV12",
+      "pos": [
+        -161.11906879219987,
+        -460.66647908813417
+      ],
+      "size": [
+        500,
+        2162
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 3
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 4
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 20
+        },
+        {
+          "name": "bboxes",
+          "shape": 7,
+          "type": "BOUNDING_BOX",
+          "link": 5
+        },
+        {
+          "name": "extra_ref_1",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 26
+        },
+        {
+          "name": "extra_ref_2",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 27
+        },
+        {
+          "name": "extra_ref_3",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "extra_ref_4",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "canvas_width",
+          "type": "INT",
+          "widget": {
+            "name": "canvas_width"
+          },
+          "link": 6
+        },
+        {
+          "name": "canvas_height",
+          "type": "INT",
+          "widget": {
+            "name": "canvas_height"
+          },
+          "link": 7
+        },
+        {
+          "name": "prompt",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": 28
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            13
+          ]
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [
+            14
+          ]
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "links": [
+            15
+          ]
+        },
+        {
+          "name": "reference_preview",
+          "type": "IMAGE",
+          "links": [
+            25
+          ]
+        },
+        {
+          "name": "data",
+          "type": "KREA2_DATA",
+          "links": [
+            35
+          ]
+        }
+      ],
+      "title": "6. Krea2 Regional Multi-LoRA V12 (UNIFIED SPATIAL)",
+      "properties": {
+        "Node name for S&R": "Krea2RegionalMultiLoRAV12",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "canvas_width": true,
+            "canvas_height": true,
+            "bboxes": true,
+            "prompt": true
+          },
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "krea2_identity_edit_v1_2.safetensors",
+        1024,
+        1024,
+        "[\n  {\n    \"lora\": \"character_A.safetensors\",\n    \"strength\": 1.3,\n    \"enable\": true,\n    \"ref_image\": \"\",\n    \"ref_enable\": true,\n    \"prompt\": \"a man\",\n    \"portrait\": false\n  },\n  {\n    \"lora\": \"character_B.safetensors\",\n    \"strength\": 1.35,\n    \"enable\": true,\n    \"ref_image\": \"\",\n    \"ref_enable\": true,\n    \"prompt\": \"a woman\",\n    \"portrait\": false\n  }\n]",
+        0.05,
+        0.22,
+        0,
+        0.64,
+        0.08,
+        "0,0,1,1",
+        "0,0,1,1",
+        0.68,
+        4,
+        0,
+        "",
+        "",
+        1024,
+        1.1,
+        0,
+        true,
+        "[{\"role\":\"scene\"},{\"role\":\"object\",\"note\":\"outfit, worn by the woman\"}]",
+        false,
+        10,
+        0,
+        "0,0,1,1",
+        "0,0,1,1",
+        0,
+        false
+      ],
+      "color": "#2a2",
+      "bgcolor": "#040"
+    },
+    {
+      "id": 101,
+      "type": "ResolutionSelector",
+      "pos": [
+        -1205.8969048694166,
+        -456.7703780670336
+      ],
+      "size": [
+        270,
+        126
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "width",
+          "type": "INT",
+          "links": [
+            29
+          ]
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": [
+            30
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.27.0",
+        "Node name for S&R": "ResolutionSelector",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "16:9 (Widescreen)",
+        1.4,
+        8
+      ]
+    },
+    {
+      "id": 102,
+      "type": "Krea2RegionalDetailer",
+      "pos": [
+        1660,
+        180
+      ],
+      "size": [
+        360,
+        460
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 31
+        },
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 32
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 33
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 34
+        },
+        {
+          "name": "data",
+          "type": "KREA2_DATA",
+          "link": 35
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            36
+          ]
+        },
+        {
+          "name": "face_preview",
+          "type": "IMAGE",
+          "links": [
+            37
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Krea2RegionalDetailer"
+      },
+      "widgets_values": [
+        true,
+        0.3,
+        0.4,
+        8,
+        1.0,
+        "euler",
+        "simple",
+        0,
+        "fixed",
+        1024,
+        0.25,
+        0.7,
+        0
+      ]
+    },
+    {
+      "id": 103,
+      "type": "PreviewImage",
+      "pos": [
+        2060,
+        180
+      ],
+      "size": [
+        300,
+        320
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 37
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      5,
+      0,
+      "MODEL"
+    ],
+    [
+      2,
+      2,
+      0,
+      5,
+      1,
+      "CLIP"
+    ],
+    [
+      3,
+      5,
+      0,
+      100,
+      0,
+      "MODEL"
+    ],
+    [
+      4,
+      5,
+      1,
+      100,
+      1,
+      "CLIP"
+    ],
+    [
+      5,
+      20,
+      2,
+      100,
+      3,
+      "BOUNDING_BOX"
+    ],
+    [
+      6,
+      20,
+      3,
+      100,
+      8,
+      "INT"
+    ],
+    [
+      7,
+      20,
+      4,
+      100,
+      9,
+      "INT"
+    ],
+    [
+      11,
+      20,
+      3,
+      60,
+      0,
+      "INT"
+    ],
+    [
+      12,
+      20,
+      4,
+      60,
+      1,
+      "INT"
+    ],
+    [
+      13,
+      100,
+      0,
+      70,
+      0,
+      "MODEL"
+    ],
+    [
+      16,
+      60,
+      0,
+      70,
+      3,
+      "LATENT"
+    ],
+    [
+      17,
+      70,
+      0,
+      80,
+      0,
+      "LATENT"
+    ],
+    [
+      18,
+      3,
+      0,
+      80,
+      1,
+      "VAE"
+    ],
+    [
+      20,
+      3,
+      0,
+      100,
+      2,
+      "VAE"
+    ],
+    [
+      25,
+      100,
+      3,
+      82,
+      0,
+      "IMAGE"
+    ],
+    [
+      14,
+      100,
+      1,
+      70,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      15,
+      100,
+      2,
+      70,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      26,
+      83,
+      0,
+      100,
+      4,
+      "IMAGE"
+    ],
+    [
+      27,
+      84,
+      0,
+      100,
+      5,
+      "IMAGE"
+    ],
+    [
+      28,
+      20,
+      0,
+      100,
+      10,
+      "STRING"
+    ],
+    [
+      29,
+      101,
+      0,
+      20,
+      1,
+      "INT"
+    ],
+    [
+      30,
+      101,
+      1,
+      20,
+      2,
+      "INT"
+    ],
+    [
+      31,
+      80,
+      0,
+      102,
+      0,
+      "IMAGE"
+    ],
+    [
+      32,
+      5,
+      0,
+      102,
+      1,
+      "MODEL"
+    ],
+    [
+      33,
+      5,
+      1,
+      102,
+      2,
+      "CLIP"
+    ],
+    [
+      34,
+      3,
+      0,
+      102,
+      3,
+      "VAE"
+    ],
+    [
+      35,
+      100,
+      4,
+      102,
+      4,
+      "KREA2_DATA"
+    ],
+    [
+      36,
+      102,
+      0,
+      81,
+      0,
+      "IMAGE"
+    ],
+    [
+      37,
+      102,
+      1,
+      103,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "1. Models",
+      "bounding": [
+        -2607.448337716759,
+        -488.1950823543587,
+        389.5177589623918,
+        409.4464326509134
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "2. Load Reference Images for Krea 2 Edit",
+      "bounding": [
+        -2183.4457565748776,
+        -492.9718566038812,
+        540.1997228734795,
+        963.5920766944406
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 3,
+      "title": "Sampler",
+      "bounding": [
+        459.16454508175065,
+        -516.1611453755729,
+        691.2398978283945,
+        975.3479928228405
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 4,
+      "title": "3. Fedor Krea2 Custom Nodes (Prompt Editor, Bounding Box Node, Fedor Krea2 Multi-Lora Control w/ Ref Images",
+      "bounding": [
+        -891.8967348619037,
+        -530.6664790881341,
+        1240.7776660697039,
+        1858
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1.1918176537727545,
+      "offset": [
+        1756.4996557948778,
+        627.5625784217511
+      ]
+    },
+    "frontendVersion": "1.45.20",
+    "ue_links": [],
+    "links_added_by_ue": [],
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4,
+  "seed_widgets": {
+    "70": 0
+  }
+}

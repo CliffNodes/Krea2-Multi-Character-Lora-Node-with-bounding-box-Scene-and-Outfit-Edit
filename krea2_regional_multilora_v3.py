@@ -76,9 +76,12 @@ def _parse_regions_v3(regions_json: str) -> list:
     raw_items = [x for x in raw if isinstance(x, dict)] if isinstance(raw, list) else []
     for i, r in enumerate(base):
         ref = ""
+        ref_enable = True
         if i < len(raw_items):
             ref = str(raw_items[i].get("ref_image", "") or "").strip()
+            ref_enable = bool(raw_items[i].get("ref_enable", True))
         r["ref_image"] = ref
+        r["ref_enable"] = ref_enable
     return base
 
 
@@ -156,6 +159,7 @@ class Krea2RegionalMultiLoRAV3:
             },
             "optional": {
                 "bboxes": ("BOUNDING_BOX", {
+                    "forceInput": True,  # keep socket-only; frontend widget group corrupts saves
                     "tooltip": "Boxes from a box builder (e.g. Ideogram4PromptBuilderKJ).",
                 }),
                 "vae": ("VAE", {
@@ -210,7 +214,8 @@ class Krea2RegionalMultiLoRAV3:
             return r["lora"] not in ("None", "") and (r["strength"] * base_strength) != 0.0
 
         def has_ref(r):
-            return bool(r.get("ref_image"))
+            # A reference only counts if it's loaded AND its per-row toggle is on.
+            return bool(r.get("ref_image")) and r.get("ref_enable", True)
 
         # A row is active if it contributes a LoRA and/or a reference image.
         # Active rows claim boxes in order (row i -> box i among active rows).
@@ -367,7 +372,8 @@ class Krea2RegionalMultiLoRAV3:
         node_data = {
             "adapters": [
                 {"name": r["name"], "lora": r["lora"], "strength": s,
-                 "ref_image": r.get("ref_image", "")}
+                 "ref_image": r.get("ref_image", ""),
+                 "ref_enable": r.get("ref_enable", True)}
                 for r, s in zip(active, strength_eff)
             ],
             "model_type": "krea2",

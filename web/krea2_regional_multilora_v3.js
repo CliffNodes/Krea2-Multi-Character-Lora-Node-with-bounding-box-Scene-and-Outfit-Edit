@@ -34,7 +34,7 @@ async function ensureLoraList() {
 }
 
 function defaultRegion() {
-  return { lora: "None", strength: 1.1, enable: true, ref_image: "" };
+  return { lora: "None", strength: 1.1, enable: true, ref_image: "", ref_enable: true };
 }
 
 function readRegions(node) {
@@ -111,6 +111,7 @@ function pickAndUploadRef(node, idx) {
     const r = readRegions(node);
     if (r[idx]) {
       r[idx].ref_image = name;
+      if (r[idx].ref_enable === undefined) r[idx].ref_enable = true;
       writeRegions(node, r);
       delete THUMB_CACHE[name]; // force fresh load
       rebuildRows(node);
@@ -345,6 +346,21 @@ function rebuildRows(node) {
       node.addCustomWidget(makeRefWidget(node, idx, region));
     } else {
       node.widgets.push(makeRefWidget(node, idx, region));
+    }
+
+    // Per-row "use reference image" toggle - only once an image is loaded.
+    if (region.ref_image) {
+      const refEnW = node.addWidget(
+        "toggle",
+        `region ${idx + 1} use reference`,
+        region.ref_enable !== false,
+        (v) => {
+          const r = readRegions(node);
+          if (r[idx]) { r[idx].ref_enable = v; writeRegions(node, r); }
+        },
+        { on: "on", off: "off" }
+      );
+      markTransient(refEnW);
     }
 
     const rmW = node.addWidget("button", `  remove region ${idx + 1}`, null, () => {

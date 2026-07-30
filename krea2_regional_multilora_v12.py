@@ -66,6 +66,13 @@ _FLEX_ATTENTION_V12 = torch.compile(
     _flex_attention_v12, dynamic=True, fullgraph=True
 )
 
+# Eager create_block_mask first materializes a dense [Q,K] boolean tensor and
+# then reduces it into sparse blocks. At the 63,662-token sequence produced by
+# a 1.3MP target plus two native reference frames, that reduction requested
+# 30.27 GiB. Compiling fuses construction with block reduction (99 MiB peak in
+# the exact failing-size regression) while producing the same BlockMask.
+_CREATE_BLOCK_MASK_V12 = torch.compile(create_block_mask)
+
 
 @dataclass(frozen=True)
 class _UnifiedPlan:
@@ -646,7 +653,7 @@ class _EditUnifiedRegionalSession(_EditRegionalSession):
                 )
                 return ~(blocked_text | blocked_target)
 
-            block_mask = create_block_mask(
+            block_mask = _CREATE_BLOCK_MASK_V12(
                 mask_mod, None, None, seq_q, seq_q, device=q.device
             )
 

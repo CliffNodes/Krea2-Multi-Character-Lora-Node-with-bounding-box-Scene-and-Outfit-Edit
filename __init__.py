@@ -45,6 +45,22 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **_V9_NAMES, **_V12_NAMES, **_DETAILER_NAMES,
 }
 
+# Brand every node in this package consistently without changing its internal
+# class identifier. Keeping identifiers stable preserves existing workflows.
+for _node_class in set(NODE_CLASS_MAPPINGS.values()):
+    _node_class.CATEGORY = "Fedor Nodes"
+
+
+def _fedor_display_name(name):
+    clean = name.replace(" (By Fedor)", "").replace(", By Fedor)", ")")
+    return f"Fedor Nodes — {clean}"
+
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    node_id: _fedor_display_name(display_name)
+    for node_id, display_name in NODE_DISPLAY_NAME_MAPPINGS.items()
+}
+
 WEB_DIRECTORY = "./web"
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]

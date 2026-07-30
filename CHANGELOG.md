@@ -92,6 +92,10 @@ LoRA**. No per-character reference photos, no portrait pre-renders required.
   (no recompile-limit fallback to a dense 17 GB score tensor) and uses
   reduced kernel tiles so the fused kernel fits shared memory even with the
   attraction channels.
+- **OOM with native-resolution reference frames**: block-mask construction is
+  now compiled, so it reduces directly to sparse blocks instead of first
+  materializing a dense Q-by-K mask. The reported 63,662-token case dropped
+  from a 30.27 GiB allocation request to a measured 99 MiB peak.
 - **Duplicate-subject / cardinality bugs**: centered semantic ownership
   cores and per-region cardinality phrasing stop one wide box from seeding
   two people.

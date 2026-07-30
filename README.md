@@ -226,6 +226,11 @@ There is no mathematical path for the LoRA to affect anything outside its region
 - **Hard spatial masking.** Activation-delta injection, not attention bias. LoRAs cannot cross their box boundary.
 - **fp8-safe.** Never modifies quantized model weights; injects at forward time.
 - **CLIP passes through untouched.** The regional effect is UNet-side, exactly where identity lives.
+- **Fedor Model Organizer.** LoRA and checkpoint dropdowns automatically
+  collapse related filenames into searchable virtual families. For example,
+  `Realism_Engine_Ideogram_V2/V3/V5` appears under one **Realism Engine
+  Ideogram** folder. Model files and saved workflow values are never renamed
+  or moved.
 
 ## Full Layout Control — Not Just LoRAs
 

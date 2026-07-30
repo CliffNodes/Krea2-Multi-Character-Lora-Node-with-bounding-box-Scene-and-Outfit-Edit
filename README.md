@@ -24,13 +24,33 @@ The V12 example workflow is at `example_workflows/krea2_regional_multilora_v12.j
 
 **One caption, exact token spans.** Your box-builder prompt is recompiled into a single scene-wide caption. For each box, V12 resolves the *exact Qwen token span* of that region's subject clause — including the offset math needed to find the caption inside Krea 2's grounded encoding, where hundreds of vision tokens precede your text. Everything downstream operates on real token positions, not approximations.
 
+> **Problem this solves:** Regional systems can attach the wrong words to the wrong box when token positions are estimated, especially with long prompts or image references.
+>
+> **What this unlocks:** Reliable prompt-to-box matching for complex scenes and any number of characters, without requiring users to count tokens or simplify their captions.
+
 **Hard cross-modal ownership (fused block-sparse attention).** A FlexAttention block mask partitions attention so each region's text span has *exclusive* ownership of a field inside its box: subject A's tokens structurally cannot influence subject B's pixels, and B's pixels cannot read A's text. This is a hard block, not a bias nudge — the same philosophy as v1's activation masking, applied to attention routing. It is the main cure for identity bleeding between adjacent boxes.
+
+> **Problem this solves:** When multiple people are close together, one character's description or identity can leak into another character, producing blended faces, swapped traits, or duplicate subjects.
+>
+> **What this unlocks:** Multiple distinct LoRA characters can stand beside, touch, or interact with each other while retaining separate identities.
 
 **Attraction field.** Blocking only *prevents* leakage — nothing pulls a subject into its box, so the model would still place people at its preferred composition. V12 adds a pre-softmax logit boost that binds each regional span to its full box, so subjects materialize inside their boxes.
 
+> **Problem this solves:** Ordinary LoRA masking limits where an identity can act, but does not force the model to generate the person inside that area.
+>
+> **What this unlocks:** Boxes become real placement controls: move a box and the associated subject follows it instead of appearing wherever the model prefers.
+
 **Box-authoritative framing.** The caption's camera sentence is derived from the largest active box height, and close-up wording that contradicts small boxes (e.g. "selfie" with knee-high boxes) is rewritten automatically. The result: a tall box gives you a large foreground subject, a small box gives you a distant full-body subject. Box size is the framing contract.
 
+> **Problem this solves:** Prompt phrases such as "selfie" or "close-up" can fight small boxes, causing oversized people, unwanted close-ups, or extra duplicate figures.
+>
+> **What this unlocks:** You control both position and apparent subject size visually: large boxes create foreground subjects, while small boxes create distant or full-body subjects.
+
 **Masks that forgive, but never bleed.** LoRA delta masks extend past the box edge in a soft "skirt" (35% of box size) so a subject that slightly overflows keeps full identity — but each skirt is Voronoi-limited to halfway across the gap toward any neighboring box, so skirts can never cause cross-identity bleed. Feathering is capped per box (30% of the box's smaller side), so even tiny boxes keep a full-strength LoRA core. Where masks overlap, the stronger region wins outright instead of identities summing.
+
+> **Problem this solves:** A face that lands partly outside its box can lose likeness, while simply enlarging the LoRA mask risks contaminating the neighboring character. Tiny boxes can also weaken a LoRA until it is barely recognizable.
+>
+> **What this unlocks:** Strong likeness survives small placement errors and distant subjects without allowing adjacent character LoRAs to mix.
 
 ### Scene transfer — only the edit LoRA required
 
@@ -39,6 +59,10 @@ Wire any photo into `extra_ref_1`. The image is *generated from noise* with your
 - `edit_lora`: the standard Krea 2 identity edit LoRA. That is the **only** extra model needed.
 - Character likeness comes entirely from your per-region character LoRAs, exactly as before.
 - `refs_json` row 1 stays `{"role":"scene"}` (the default).
+
+> **Problem this solves:** Traditional inpainting often makes characters look pasted into a photo because lighting, perspective, shadows, and contact with the environment are resolved separately.
+>
+> **What this unlocks:** Place your LoRA characters naturally inside almost any scene photo using one standard edit LoRA—without training scene LoRAs or supplying a separate portrait reference for every character.
 
 ### Outfit / object transfer
 
@@ -51,6 +75,10 @@ Wire a second photo into `extra_ref_2` with a full-canvas box (`0,0,1,1`) and de
 
 The plate becomes its own reference frame and the node writes the referring text ("the outfit from the third reference") with the correct frame number automatically. Roles: `auto | scene | person | object | style`. The `note` is "noun, where it goes".
 
+> **Problem this solves:** A text prompt alone cannot faithfully reproduce a particular outfit, prop, product, or visual design from another image, and reference numbering becomes error-prone as more plates are added.
+>
+> **What this unlocks:** Borrow a specific outfit or object from a second image and direct it to the intended character while preserving that character's LoRA identity and the first image's scene.
+
 ### Regional Detailer (optional but recommended)
 
 `Krea2 Regional Detailer` sits between `VAEDecode` and `SaveImage` (already wired in the example workflow):
@@ -60,6 +88,10 @@ The plate becomes its own reference frame and the node writes the referring text
 - Feathered paste-back, pixel budget capped, `skip_above_px` lets you refine only small/distant subjects.
 
 Cost: roughly 40–60 s for two subjects (8 steps each pass) on top of the main generation.
+
+> **Problem this solves:** Small or distant faces may not contain enough pixels for strong likeness, and subjects can drift across box boundaries during the initial generation.
+>
+> **What this unlocks:** High-detail, LoRA-accurate faces for two, three, or more characters—even when their final rendered positions do not perfectly match the original boxes.
 
 ### How to use the V12 workflow, step by step
 

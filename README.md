@@ -183,6 +183,27 @@ The v3 example workflow is at `example_workflows/krea2_regional_multilora_v3.jso
 
 ## Recent fixes
 
+**Diffusers-style LoRA keys (`matched 0/264 layers`).** Krea 2 LoRAs ship under
+two naming conventions. ComfyUI-native files name modules the way the model
+does (`diffusion_model.blocks.0.attn.wq`); files from ai-toolkit / DiffSynth and
+most civitai Krea2 LoRAs use diffusers names
+(`transformer.transformer_blocks.0.attn.to_q`). The loader matched LoRA keys to
+live modules by normalized name only, so every diffusers-style file **matched 0
+layers and silently did nothing** — even though ComfyUI's own `LoraLoader`
+loads the same file fine, because it translates through
+`comfy.utils.krea2_to_diffusers` first. The loader now mirrors that map
+(`to_q → wq`, `ff.down → mlp.down`, `text_fusion → txtfusion`, `img_in →
+first`, `final_layer.linear → last.linear`, …), so both conventions resolve to
+the same signature: the affected files go from 0/264 to **264/264** matched,
+and native-format files are byte-for-byte unaffected (256/256, no signature
+collisions). The alias table is keyed on the normalized signature, so dotted
+(diffusers) and underscored (kohya / lycoris) spellings both hit. Diffusers
+exports also carry 8 modules the native ones omit — `img_in`, `final_layer`,
+`time_embed`, `time_mod_proj`, `txt_in`, `text_fusion.projector` — which is why
+the count reads 264 rather than 256. Note that `tmlp` / `tproj` (timestep
+embedding) have no token axis to mask, so those layers fall back to the
+mask-mean path and act globally, as the text-side layers already did.
+
 **LoKr (Kronecker) LoRA support.** Newer training runs (e.g. recent ai-toolkit
 builds) can output **LoKr** files, which store Kronecker factors
 (`lokr_w1` / `lokr_w2`) instead of the usual `lora_A` / `lora_B` pairs. The

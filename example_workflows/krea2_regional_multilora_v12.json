@@ -24,7 +24,8 @@
           "name": "CLIP",
           "type": "CLIP",
           "links": [
-            2
+            4,
+            33
           ]
         }
       ],
@@ -32,12 +33,7 @@
       "properties": {
         "cnr_id": "comfy-core",
         "ver": "0.27.0",
-        "Node name for S&R": "CLIPLoader",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
+        "Node name for S&R": "CLIPLoader"
       },
       "widgets_values": [
         "qwen3vl_4b_bf16.safetensors",
@@ -77,12 +73,7 @@
       "properties": {
         "cnr_id": "comfy-core",
         "ver": "0.27.0",
-        "Node name for S&R": "VAELoader",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
+        "Node name for S&R": "VAELoader"
       },
       "widgets_values": [
         "qwen_image_vae.safetensors"
@@ -98,8 +89,8 @@
         -435.60727280892115
       ],
       "size": [
-        440,
-        480
+        620,
+        1050
       ],
       "flags": {},
       "order": 2,
@@ -108,15 +99,10 @@
       "outputs": [],
       "title": "README -- V12 UNIFIED SPATIAL",
       "properties": {
-        "Node name for S&R": "Note",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
+        "Node name for S&R": "Note"
       },
       "widgets_values": [
-        "V12 UNIFIED SPATIAL -- quick start\n================================================================\nBoxes control WHERE each subject renders, HOW LARGE it appears, and\nwhich character LoRA owns it. Hover any input for a tooltip.\n\n1. Load the three Krea 2 models (UNet / Qwen3-VL CLIP / VAE) and put the\n   Krea 2 identity edit LoRA in the V12 node's edit_lora slot.\n2. Scene photo: load any photo into the LoadImage wired to extra_ref_1.\n   Your characters are GENERATED INTO that scene (lighting and\n   perspective integrate naturally -- this is not a paste).\n3. Prompt: describe the scene and what the people are doing. Keep\n   \"background is from reference photo 1\" when using a scene photo.\n   Interactions (\"arm around\", \"holding hands\") go here.\n4. Draw one box per character, sized like the person should appear:\n   tall box = close/large subject, small box = distant subject.\n   Short generic box descriptions (\"man\", \"woman\"). Don't overlap.\n5. In the V12 node: pick each row's character LoRA. Strength 1.3-1.4,\n   base_strength 1.1. Region prompts stay short (\"a man\") -- identity\n   comes from the LoRA. Portraits stay OFF.\n6. Optional outfit transfer: load a clothing photo into the LoadImage\n   wired to extra_ref_2 (it is muted by default -- unmute to use) and\n   keep the refs_json role: {\"role\":\"object\",\"note\":\"outfit, worn by\n   the woman\"}.\n7. Detailer: leave enabled for an extra per-subject face + body pass\n   with each region's own LoRA. If furniture inside boxes changes,\n   lower body_denoise to ~0.20.\n8. Sampler is preset for Krea 2 Turbo: euler / 12 steps / CFG 1.\n   First run compiles the fused attention kernel (~1 min, once per\n   session).\n\nIf likeness is weak: raise the row strength before anything else.\nIf identities mix: check box order matches row order, and keep\nblend_override at 0."
+        "START HERE -- V12 UNIFIED SPATIAL\n====================================================================\nBoxes control WHERE each subject renders, HOW LARGE it appears, and\nwhich character LoRA owns it. Hover any input for a tooltip.\n\nQUICK START\n1. MODELS\n   Select krea2_turbo_bf16.safetensors, qwen3vl_4b_bf16.safetensors\n   (CLIP type krea2), qwen_image_vae.safetensors, and the standard\n   Krea 2 identity edit LoRA in the green V12 node.\n\n2. SCENE\n   Load any SFW scene photo into SCENE PHOTO (extra_ref_1). Characters\n   are regenerated into its lighting and perspective, not pasted on top.\n   Keep \"background is from reference photo 1\" in the background field.\n\n3. PROMPT AND BOXES\n   Describe the whole scene and interactions in the main prompt.\n   Draw one box per character, in the same order as the V12 rows.\n   Box size controls subject size: tall/large = close foreground;\n   small = distant/full body. Use one-person box descriptions such as\n   \"man\". Do not name the other person inside a character's box.\n\n4. CHARACTER LORAS\n   In each V12 row, choose one Krea 2 character LoRA. Start around\n   1.3-1.4 with base_strength 1.1. Keep row prompts short (\"a man\"),\n   portraits OFF, blend_override 0, and boxes separated where possible.\n\n5. OPTIONAL OUTFIT OR OBJECT\n   Unmute Ref 2, load a clothing/object image, and keep refs_json row 2\n   as {\"role\":\"object\",\"note\":\"outfit, worn by the second man\"}.\n   Scene and outfit transfer require only the standard edit LoRA.\n\n6. DETAILER AND SAMPLER\n   The Detailer is already wired after VAEDecode. The sampler is preset:\n   euler / normal / 12 steps / CFG 1. First use compiles the V12 kernels\n   and may take about a minute; later runs are faster.\n\nTROUBLESHOOTING\n- Missing V12/Detailer nodes:\n  Update this custom-node package, restart ComfyUI, then Ctrl+Shift+R.\n\n- \"No link found in parent graph\":\n  Use this updated workflow. It removes the unnecessary empty rgthree\n  passthrough that triggered stale model links. In an older workflow,\n  delete and reconnect the MODEL and CLIP wires into the V12 node.\n\n- Model or LoRA name is red/missing:\n  Select the matching file installed on your system. character_A and\n  character_B are placeholders, not downloadable models.\n\n- Weak or wrong likeness:\n  Confirm box order = row order, each box describes only its own person,\n  blend_override is 0, and row strength starts around 1.3-1.4. Enable\n  the Detailer; faces must have enough pixels to resolve.\n\n- Identities mix or swap:\n  Avoid overlapping boxes. Put interactions in the main prompt, never\n  another person's identity inside a box description. Leave a small gap.\n\n- Extra/duplicate people:\n  Generate around 1.5-2 MP, use exactly one subject phrase per box, and\n  avoid camera wording that conflicts with box size.\n\n- CUDA out of memory:\n  Update the node first (current V12 compiles sparse block-mask creation).\n  Lower output to 1.5-2 MP and set ref_max_side to 1024 if native reference\n  frames still exceed VRAM. Upscale after generation instead of sampling\n  directly at extreme resolutions.\n\n- Plasticky skin or changed furniture after Detailer:\n  Set body_denoise to 0-0.20, face_denoise near 0.30, and lora_scale near\n  0.60. The face pass provides most of the identity improvement.\n\n- Detailer does not detect faces:\n  Install ultralytics and place face_yolov8m.pt under\n  ComfyUI/models/ultralytics/bbox/.\n\n- First run appears frozen:\n  Wait for kernel compilation and watch the console. It is a one-time\n  per-session cost, not a failed queue."
       ],
       "color": "#444",
       "bgcolor": "#222"
@@ -141,7 +127,8 @@
           "name": "MODEL",
           "type": "MODEL",
           "links": [
-            1
+            3,
+            32
           ]
         }
       ],
@@ -149,12 +136,7 @@
       "properties": {
         "cnr_id": "comfy-core",
         "ver": "0.27.0",
-        "Node name for S&R": "UNETLoader",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
+        "Node name for S&R": "UNETLoader"
       },
       "widgets_values": [
         "krea2_turbo_bf16.safetensors",
@@ -196,12 +178,7 @@
       "properties": {
         "cnr_id": "comfy-core",
         "ver": "0.27.0",
-        "Node name for S&R": "LoadImage",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
+        "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
         "scene_reference.png",
@@ -242,12 +219,7 @@
       "properties": {
         "cnr_id": "comfy-core",
         "ver": "0.27.0",
-        "Node name for S&R": "SaveImage",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
+        "Node name for S&R": "SaveImage"
       },
       "widgets_values": [
         "Krea2_MultiLoRA_V12"
@@ -294,12 +266,7 @@
       "properties": {
         "cnr_id": "comfy-core",
         "ver": "0.27.0",
-        "Node name for S&R": "VAEDecode",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
+        "Node name for S&R": "VAEDecode"
       },
       "widgets_values": [],
       "color": "#222",
@@ -337,12 +304,7 @@
       "properties": {
         "cnr_id": "comfy-core",
         "ver": "0.27.0",
-        "Node name for S&R": "PreviewImage",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
+        "Node name for S&R": "PreviewImage"
       },
       "widgets_values": [],
       "color": "#222",
@@ -393,16 +355,7 @@
       "properties": {
         "cnr_id": "comfy-core",
         "ver": "0.27.0",
-        "Node name for S&R": "EmptySD3LatentImage",
-        "ue_properties": {
-          "widget_ue_connectable": {
-            "width": true,
-            "height": true,
-            "batch_size": true
-          },
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
+        "Node name for S&R": "EmptySD3LatentImage"
       },
       "widgets_values": [
         1536,
@@ -461,12 +414,7 @@
       "properties": {
         "cnr_id": "comfy-core",
         "ver": "0.27.0",
-        "Node name for S&R": "KSampler",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
+        "Node name for S&R": "KSampler"
       },
       "widgets_values": [
         761809200623510,
@@ -479,78 +427,6 @@
       ],
       "color": "#262",
       "bgcolor": "#040"
-    },
-    {
-      "id": 5,
-      "type": "Power Lora Loader (rgthree)",
-      "pos": [
-        -1612.388846835144,
-        -455.9800564333747
-      ],
-      "size": [
-        360,
-        382
-      ],
-      "flags": {},
-      "order": 7,
-      "mode": 0,
-      "inputs": [
-        {
-          "dir": 3,
-          "name": "model",
-          "type": "MODEL",
-          "link": 1
-        },
-        {
-          "dir": 3,
-          "name": "clip",
-          "type": "CLIP",
-          "link": 2
-        }
-      ],
-      "outputs": [
-        {
-          "dir": 4,
-          "name": "MODEL",
-          "type": "MODEL",
-          "links": [
-            3,
-            32
-          ]
-        },
-        {
-          "dir": 4,
-          "name": "CLIP",
-          "type": "CLIP",
-          "links": [
-            4,
-            33
-          ]
-        }
-      ],
-      "title": "4. Global LoRAs (Power Lora Loader)",
-      "properties": {
-        "cnr_id": "rgthree-comfy",
-        "ver": "738105af5fb14e96fbecaf406dc356e284797e8c",
-        "Show Strengths": "Single Strength",
-        "Match": "",
-        "Node name for S&R": "Power Lora Loader (rgthree)",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        {},
-        {
-          "type": "PowerLoraLoaderHeaderWidget"
-        },
-        {},
-        ""
-      ],
-      "color": "#432",
-      "bgcolor": "#210"
     },
     {
       "id": 84,
@@ -585,12 +461,7 @@
       "properties": {
         "cnr_id": "comfy-core",
         "ver": "0.27.0",
-        "Node name for S&R": "LoadImage",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
+        "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
         "outfit_reference.png",
@@ -687,11 +558,6 @@
         "cnr_id": "comfyui_fearnworksnodes",
         "ver": "0.1.2",
         "Node name for S&R": "Ideogram4PromptBuilderKJ",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        },
         "dockPinned": true,
         "dockGraph": {
           "x": 0,
@@ -707,14 +573,14 @@
       "widgets_values": [
         1584,
         896,
-        "man and woman standing in a modern kitchen, posing for a photo together, the man has his arm around the woman",
+        "Wide angle photo of 2 men taking a selfie side by side, one has his arm over the other",
         "background is from reference photo 1",
         "none",
         "",
         "",
         "",
         "",
-        "[{\"x\":0.02,\"y\":0.143,\"w\":0.36,\"h\":0.708,\"type\":\"obj\",\"text\":\"\",\"desc\":\"man\",\"palette\":[]},{\"x\":0.4,\"y\":0.167,\"w\":0.32,\"h\":0.691,\"type\":\"obj\",\"text\":\"\",\"desc\":\"woman\",\"palette\":[]}]",
+        "[{\"x\":0.02,\"y\":0.143,\"w\":0.36,\"h\":0.708,\"type\":\"obj\",\"text\":\"\",\"desc\":\"man\",\"palette\":[]},{\"x\":0.4,\"y\":0.167,\"w\":0.32,\"h\":0.691,\"type\":\"obj\",\"text\":\"\",\"desc\":\"man\",\"palette\":[]}]",
         25,
         "when empty",
         "compact",
@@ -741,7 +607,7 @@
             "h": 0.691,
             "type": "obj",
             "text": "",
-            "desc": "woman",
+            "desc": "man",
             "palette": []
           }
         ],
@@ -886,23 +752,13 @@
       ],
       "title": "6. Krea2 Regional Multi-LoRA V12 (UNIFIED SPATIAL)",
       "properties": {
-        "Node name for S&R": "Krea2RegionalMultiLoRAV12",
-        "ue_properties": {
-          "widget_ue_connectable": {
-            "canvas_width": true,
-            "canvas_height": true,
-            "bboxes": true,
-            "prompt": true
-          },
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        }
+        "Node name for S&R": "Krea2RegionalMultiLoRAV12"
       },
       "widgets_values": [
         "krea2_identity_edit_v1_2.safetensors",
         1024,
         1024,
-        "[\n  {\n    \"lora\": \"character_A.safetensors\",\n    \"strength\": 1.3,\n    \"enable\": true,\n    \"ref_image\": \"\",\n    \"ref_enable\": true,\n    \"prompt\": \"a man\",\n    \"portrait\": false\n  },\n  {\n    \"lora\": \"character_B.safetensors\",\n    \"strength\": 1.35,\n    \"enable\": true,\n    \"ref_image\": \"\",\n    \"ref_enable\": true,\n    \"prompt\": \"a woman\",\n    \"portrait\": false\n  }\n]",
+        "[\n  {\n    \"lora\": \"character_A.safetensors\",\n    \"strength\": 1.3,\n    \"enable\": true,\n    \"ref_image\": \"\",\n    \"ref_enable\": true,\n    \"prompt\": \"a man\",\n    \"portrait\": false\n  },\n  {\n    \"lora\": \"character_B.safetensors\",\n    \"strength\": 1.35,\n    \"enable\": true,\n    \"ref_image\": \"\",\n    \"ref_enable\": true,\n    \"prompt\": \"a man\",\n    \"portrait\": false\n  }\n]",
         0.05,
         0.22,
         0,
@@ -919,7 +775,7 @@
         1.1,
         0,
         true,
-        "[{\"role\":\"scene\"},{\"role\":\"object\",\"note\":\"outfit, worn by the woman\"}]",
+        "[{\"role\":\"scene\"},{\"role\":\"object\",\"note\":\"outfit, worn by the second man\"}]",
         false,
         10,
         0,
@@ -965,12 +821,7 @@
       "properties": {
         "cnr_id": "comfy-core",
         "ver": "0.27.0",
-        "Node name for S&R": "ResolutionSelector",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.8"
-        }
+        "Node name for S&R": "ResolutionSelector"
       },
       "widgets_values": [
         "16:9 (Widescreen)",
@@ -1084,24 +935,8 @@
   ],
   "links": [
     [
-      1,
-      1,
-      0,
-      5,
-      0,
-      "MODEL"
-    ],
-    [
-      2,
-      2,
-      0,
-      5,
-      1,
-      "CLIP"
-    ],
-    [
       3,
-      5,
+      1,
       0,
       100,
       0,
@@ -1109,8 +944,8 @@
     ],
     [
       4,
-      5,
-      1,
+      2,
+      0,
       100,
       1,
       "CLIP"
@@ -1269,7 +1104,7 @@
     ],
     [
       32,
-      5,
+      1,
       0,
       102,
       1,
@@ -1277,8 +1112,8 @@
     ],
     [
       33,
-      5,
-      1,
+      2,
+      0,
       102,
       2,
       "CLIP"
@@ -1376,8 +1211,6 @@
       ]
     },
     "frontendVersion": "1.45.20",
-    "ue_links": [],
-    "links_added_by_ue": [],
     "VHS_latentpreview": false,
     "VHS_latentpreviewrate": 0,
     "VHS_MetadataImage": true,

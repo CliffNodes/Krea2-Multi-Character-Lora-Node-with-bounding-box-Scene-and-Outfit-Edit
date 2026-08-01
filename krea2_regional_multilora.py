@@ -141,14 +141,128 @@ def _auto_split_norm(n: int, mode: str) -> list:
 # ---------------------------------------------------------------------------
 # LoRA loading + layer matching
 # ---------------------------------------------------------------------------
+_LORA_KEY_WRAPPERS = (
+    # Longest first. Repeat stripping because PEFT/OneTrainer exports can
+    # stack wrappers, e.g. base_model.model.transformer.transformer_blocks...
+    "base_model.model.diffusion_model.",
+    "base_model.model.transformer.",
+    "base_model.model.",
+    "model.diffusion_model.",
+    "diffusion_model.",
+    "diffusion_model_",
+    "lora_transformer_",
+    "lora_unet_",
+    "lora_prior_unet_",
+    "lora_te1_",
+    "lora_te2_",
+    "lora_te_",
+    "lora_",
+    "base_model.",
+    "transformer__",
+    "transformer.",
+    "model.",
+)
+
+
+def _strip_lora_key_wrappers(s):
+    """Remove trainer/container prefixes without eating architecture stems.
+
+    The loop is intentional: OneTrainer PEFT exports may be wrapped as
+    ``base_model.model.transformer.*`` while Musubi/Kohya use
+    ``lora_unet_*`` or ``lora_transformer_*``. Double underscores are
+    OneTrainer's escaped path separators.
+    """
+    value = str(s or "").lower()
+    changed = True
+    while changed:
+        changed = False
+        for prefix in _LORA_KEY_WRAPPERS:
+            if value.startswith(prefix):
+                value = value[len(prefix):]
+                changed = True
+                break
+    # Some flat Kohya converters retain an extra transformer namespace after
+    # lora_unet_; remove it only when followed by the actual Krea block stem.
+    for prefix in ("transformer_transformer_blocks_",
+                   "transformer__transformer_blocks__"):
+        if value.startswith(prefix):
+            value = value[len(prefix) - len("transformer_blocks_"):]
+            break
+    return value
+
+
 def _norm_key(s):
-    s = s.lower()
-    for pre in ("lora_unet_", "lora_te_", "lora_", "diffusion_model.",
-                "diffusion_model_", "transformer.", "model.diffusion_model.",
-                "model.", "base_model."):
-        if s.startswith(pre):
-            s = s[len(pre):]
-    return s.replace(".", "").replace("_", "")
+    value = _strip_lora_key_wrappers(s)
+    return value.replace(".", "").replace("_", "")
+
+
+# Krea 2 LoRAs use two module namespaces. Native/Musubi exports follow the
+# live model (blocks.0.attn.wq); Diffusers/AI Toolkit/PEFT exports use
+# transformer_blocks.0.attn.to_q. OneTrainer and Musubi/Kohya flatten those
+# same paths with underscores, which _norm_key intentionally erases.
+_KREA2_DIFFUSERS_LEAF = {
+    "attn.to_q": "attn.wq",
+    "attn.to_k": "attn.wk",
+    "attn.to_v": "attn.wv",
+    "attn.to_gate": "attn.gate",
+    "attn.to_out.0": "attn.wo",
+    "attn.to_out": "attn.wo",
+    "ff.gate": "mlp.gate",
+    "ff.up": "mlp.up",
+    "ff.down": "mlp.down",
+}
+_KREA2_DIFFUSERS_STEMS = {
+    "transformer_blocks": "blocks",
+    "text_fusion.layerwise_blocks": "txtfusion.layerwise_blocks",
+    "text_fusion.refiner_blocks": "txtfusion.refiner_blocks",
+}
+_KREA2_DIFFUSERS_BASIC = {
+    "img_in": "first",
+    "time_embed.linear_1": "tmlp.0",
+    "time_embed.linear_2": "tmlp.2",
+    "time_mod_proj": "tproj.1",
+    "txt_in.linear_1": "txtmlp.1",
+    "txt_in.linear_2": "txtmlp.3",
+    "text_fusion.projector": "txtfusion.projector",
+    "final_layer.linear": "last.linear",
+}
+
+
+def _build_krea2_alias_map(max_blocks=128, max_txt_blocks=8):
+    aliases = {
+        _norm_key(diffusers): _norm_key(native)
+        for diffusers, native in _KREA2_DIFFUSERS_BASIC.items()
+    }
+    for diffusers_stem, native_stem in _KREA2_DIFFUSERS_STEMS.items():
+        count = max_blocks if diffusers_stem == "transformer_blocks" \
+            else max_txt_blocks
+        for index in range(count):
+            for diffusers_leaf, native_leaf in _KREA2_DIFFUSERS_LEAF.items():
+                aliases[_norm_key(
+                    f"{diffusers_stem}.{index}.{diffusers_leaf}"
+                )] = _norm_key(f"{native_stem}.{index}.{native_leaf}")
+    return aliases
+
+
+_KREA2_ALIASES = _build_krea2_alias_map()
+
+
+def _module_sig(base):
+    """Canonical live-model signature for any supported trainer namespace."""
+    signature = _norm_key(base)
+    return _KREA2_ALIASES.get(signature, signature)
+
+
+def _key_format(base):
+    """Best-effort format label for diagnostics; matching never relies on it."""
+    value = str(base or "").lower()
+    if "__" in value:
+        return "OneTrainer"
+    if value.startswith(("lora_unet_", "lora_transformer_")):
+        return "Musubi/Kohya"
+    if value.startswith(("transformer.", "base_model.")):
+        return "Diffusers/AI-Toolkit/PEFT"
+    return "native/ComfyUI"
 
 
 def _load_lora_matrices(path):
@@ -167,11 +281,17 @@ def _load_lora_matrices(path):
             base = re.sub(r"\.?alpha$", "", k)
             alphas[base] = float(v.flatten()[0].item())
             continue
-        m = re.search(r"(.*?)\.(lora_down|lora_A)\.weight$", k)
+        # PEFT may insert an adapter name (usually ".default") between
+        # lora_A/B and weight; single-file trainer exports usually omit it.
+        m = re.search(
+            r"(.*?)\.(lora_down|lora_A)(?:\.[^.]+)?\.weight$", k
+        )
         if m:
             groups.setdefault(m.group(1), {})["down"] = v.float()
             continue
-        m = re.search(r"(.*?)\.(lora_up|lora_B)\.weight$", k)
+        m = re.search(
+            r"(.*?)\.(lora_up|lora_B)(?:\.[^.]+)?\.weight$", k
+        )
         if m:
             groups.setdefault(m.group(1), {})["up"] = v.float()
             continue
@@ -181,13 +301,18 @@ def _load_lora_matrices(path):
             continue
 
     out = {}
+    formats = set()
+    translated = 0
     for base, mats in groups.items():
         if "down" not in mats or "up" not in mats:
             continue
         down, up = mats["down"], mats["up"]
         rank = down.shape[0]
         alpha = alphas.get(base, alphas.get(base + ".alpha", float(rank)))
-        out[_norm_key(base)] = {
+        signature = _module_sig(base)
+        translated += signature != _norm_key(base)
+        formats.add(_key_format(base))
+        out[signature] = {
             "kind": "lora",
             "down": down,
             "up": up,
@@ -221,12 +346,21 @@ def _load_lora_matrices(path):
             continue
         alpha = alphas.get(base, None)
         scale = (alpha / dim) if (alpha is not None and dim is not None) else 1.0
-        out[_norm_key(base)] = {
+        signature = _module_sig(base)
+        translated += signature != _norm_key(base)
+        formats.add(_key_format(base))
+        out[signature] = {
             "kind": "lokr",
             "w1": w1,
             "w2": w2,
             "scale": float(scale),
         }
+    if out:
+        logging.info(
+            "[Krea2RegionalMultiLoRA] '%s': detected %s; canonicalized "
+            "%d/%d module keys.",
+            path, ", ".join(sorted(formats)), translated, len(out),
+        )
     return out
 
 
@@ -396,7 +530,11 @@ class _RegionalSession:
                          ridx, count, targets)
             if count == 0 and targets > 0:
                 logging.warning("[Krea2RegionalMultiLoRA] region %d matched 0 layers - "
-                                "LoRA key format may not map onto this model.", ridx)
+                                "LoRA key format may not map onto this model. "
+                                "LoRA sigs e.g. %s | model sigs e.g. %s", ridx,
+                                sorted(self.region_loras[ridx])[:3],
+                                [_norm_key(n) for n, _ in
+                                 _iter_named_linears(dm)][:3])
         return layer_map
 
     def _infer_device(self, dm, args):

@@ -78,6 +78,14 @@ LoRA**. No per-character reference photos, no portrait pre-renders required.
 
 ### Fixes
 
+- **Major trainer key compatibility**: the shared regional loader now
+  canonicalizes Krea 2 LoRA keys from AI Toolkit/Diffusers/PEFT,
+  Musubi/Kohya, and OneTrainer. Repeated wrappers such as
+  `base_model.model.transformer.`, flat `lora_unet_` /
+  `lora_transformer_` names, OneTrainer `__` separators, and named PEFT
+  adapters are supported. Native ComfyUI and LoKr paths remain unchanged.
+  Real 264-layer Diffusers fixtures now translate 264/264 modules instead of
+  matching zero; native 256-layer LoRA and LoKr fixtures remain 256/256.
 - **Public package import error**: `__init__.py` referenced modules that
   were not in the repository, breaking fresh installs. The registration
   list now matches the shipped files exactly.

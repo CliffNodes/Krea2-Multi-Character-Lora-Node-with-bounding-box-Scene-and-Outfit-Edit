@@ -183,6 +183,22 @@ The v3 example workflow is at `example_workflows/krea2_regional_multilora_v3.jso
 
 ## Recent fixes
 
+**AI Toolkit, Musubi Tuner, and OneTrainer key compatibility.**
+The shared regional loader now canonicalizes the major Krea 2 LoRA export
+namespaces before matching model layers:
+
+- Diffusers / AI Toolkit / PEFT dotted keys, including stacked
+  `base_model.model.transformer.` wrappers and named PEFT adapters.
+- Musubi/Kohya flat `lora_unet_` or `lora_transformer_` keys.
+- OneTrainer double-underscore path separators.
+- Native ComfyUI Krea 2 keys and standard LoKr factors remain unchanged.
+
+This applies automatically to every regional node version because they share
+one loader. The console reports the detected format, canonicalized module
+count, and sample LoRA/model signatures if a file still matches zero layers.
+Format support does not make a FLUX/SDXL LoRA into a Krea 2 LoRA: the file must
+still have been trained against the Krea 2 architecture.
+
 **LoKr (Kronecker) LoRA support.** Newer training runs (e.g. recent ai-toolkit
 builds) can output **LoKr** files, which store Kronecker factors
 (`lokr_w1` / `lokr_w2`) instead of the usual `lora_A` / `lora_B` pairs. The
@@ -292,7 +308,7 @@ Restart ComfyUI. The nodes appear under the `Krea2/By Fedor` category:
 - **Krea2 Reference Lock / Reference Lock — Multi** — standalone reference steering (v2, for custom wiring).
 
 **Requirements:**
-- ComfyUI with Krea 2 support (a recent `master` build — needs the `Krea2` model class and `krea2_to_diffusers` LoRA key map).
+- ComfyUI with Krea 2 support (a recent `master` build with the `Krea2` model class).
 - Python packages: `torch`, `safetensors` (already present in any ComfyUI install).
 - No other custom-node dependencies. This node is fully standalone.
 
@@ -311,7 +327,14 @@ All from the Krea 2 release:
 | VAELoader | `qwen_image_vae.safetensors` |
 | V12 node `edit_lora` slot | the Krea 2 identity edit LoRA (only needed for scene/outfit transfer) |
 
-Your **character LoRAs must be trained against Krea 2**. The reference trainer is [ai-toolkit](https://github.com/ostris/ai-toolkit). FLUX or Ideogram LoRAs will load without erroring but produce poor likeness — the attention dimensions don't line up.
+Your **character LoRAs must be trained against Krea 2**. Standard LoRA exports
+from AI Toolkit, Musubi Tuner/Kohya, and OneTrainer are recognized,
+including Diffusers/PEFT and flattened trainer namespaces. FLUX, SDXL, or
+Ideogram LoRAs are not interchangeable with Krea 2 LoRAs; incompatible layer
+shapes or architecture names will not produce a usable identity.
+
+FluxGym is not listed because its similarly named FLUX.1-Krea-dev support is
+for the FLUX architecture, not Krea 2.
 
 ---
 

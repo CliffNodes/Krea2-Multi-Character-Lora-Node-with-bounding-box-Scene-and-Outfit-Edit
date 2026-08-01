@@ -1,3 +1,8 @@
+<img width="1618" height="346" alt="side-by-side-collage" src="https://github.com/user-attachments/assets/3fcdd5d5-bfb7-4392-abe6-cb113bb1e14d" />
+<img width="3620" height="891" alt="side-by-side-collage (2)" src="https://github.com/user-attachments/assets/f45d9990-548d-4b6e-998c-f764e6de2fc0" />
+<img width="6278" height="1876" alt="side-by-side-collage (5)" src="https://github.com/user-attachments/assets/389322b0-f41e-4d99-9bfe-2d61847d346e" />
+
+
 # ComfyUI Krea2 Regional Multi-LoRA — By Fedor
 
 **Put multiple character LoRAs in one image — each one locked to its own box. Plus full bounding-box layout control for objects and any non-LoRA element.**

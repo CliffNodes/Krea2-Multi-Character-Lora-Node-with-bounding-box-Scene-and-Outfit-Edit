@@ -1,3 +1,4 @@
+<img width="1625" height="883" alt="Screenshot 2026-08-01 174659" src="https://github.com/user-attachments/assets/554cecf9-26a9-4b55-aacb-54d26ec912e0" />
 <img width="1618" height="346" alt="side-by-side-collage" src="https://github.com/user-attachments/assets/3fcdd5d5-bfb7-4392-abe6-cb113bb1e14d" />
 <img width="3620" height="891" alt="side-by-side-collage (2)" src="https://github.com/user-attachments/assets/f45d9990-548d-4b6e-998c-f764e6de2fc0" />
 <img width="6278" height="1876" alt="side-by-side-collage (5)" src="https://github.com/user-attachments/assets/389322b0-f41e-4d99-9bfe-2d61847d346e" />

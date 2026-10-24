@@ -173,6 +173,24 @@ class Krea2RegionalMultiLoRAV3:
                     "default": True,
                     "tooltip": "Emit a '__background__' mask in the masks output (debug only).",
                 }),
+                "lora_stack": ("LORA_STACK", {
+                    "tooltip": "Global LoRAs from any LORA_STACK producer (LoraManager, "
+                               "Comfyroll, Easy-Use). Applied to every region, layered "
+                               "under that region's own LoRA. Wire the same picker you "
+                               "already use instead of scrolling the built-in dropdown.",
+                }),
+                "lora_stack_region_1": ("LORA_STACK", {
+                    "tooltip": "Per-region LoRAs for region 1 (replaces its dropdown pick).",
+                }),
+                "lora_stack_region_2": ("LORA_STACK", {
+                    "tooltip": "Per-region LoRAs for region 2.",
+                }),
+                "lora_stack_region_3": ("LORA_STACK", {
+                    "tooltip": "Per-region LoRAs for region 3.",
+                }),
+                "lora_stack_region_4": ("LORA_STACK", {
+                    "tooltip": "Per-region LoRAs for region 4.",
+                }),
             },
         }
 
@@ -207,8 +225,20 @@ class Krea2RegionalMultiLoRAV3:
         vae=None,
         base_strength=1.0,
         include_background=True,
+        lora_stack=None,
+        lora_stack_region_1=None,
+        lora_stack_region_2=None,
+        lora_stack_region_3=None,
+        lora_stack_region_4=None,
     ):
+        base_strength = 1.0 if base_strength is None else float(base_strength)
         regions = _parse_regions_v3(regions_json)
+
+        # Per-region stacks, indexed by region order (0-based).
+        region_stacks = [
+            lora_stack_region_1, lora_stack_region_2,
+            lora_stack_region_3, lora_stack_region_4,
+        ]
 
         def has_lora(r):
             return r["lora"] not in ("None", "") and (r["strength"] * base_strength) != 0.0
@@ -219,7 +249,17 @@ class Krea2RegionalMultiLoRAV3:
 
         # A row is active if it contributes a LoRA and/or a reference image.
         # Active rows claim boxes in order (row i -> box i among active rows).
-        active = [r for r in regions if r["enable"] and (has_lora(r) or has_ref(r))]
+        # A wired LORA_STACK (global or per-region) also counts as contribution.
+        _has_global_stack = bool(lora_stack)
+        active = [
+            r for i, r in enumerate(regions)
+            if r["enable"] and (
+                has_lora(r)
+                or has_ref(r)
+                or _has_global_stack
+                or (i < len(region_stacks) and bool(region_stacks[i]))
+            )
+        ]
 
         empty_masks = {"masks": {}, "similarity_maps": {}, "text_mask_value": float(blend_override)}
         if not active:
@@ -253,25 +293,71 @@ class Krea2RegionalMultiLoRAV3:
         file_cache = {}
         region_loras = []
         strength_eff = []
-        for r in active:
-            if not has_lora(r):
-                region_loras.append({})   # ref-only row: holds its box, no LoRA
-                strength_eff.append(0.0)
-                continue
-            path = _resolve_lora_path(r["lora"])
+
+        def _stack_entries(stack):
+            """Normalise a LORA_STACK into [(path, strength), ...]."""
+            out = []
+            for entry in (stack or []):
+                try:
+                    path, m_strength = entry[0], entry[1]
+                except (TypeError, IndexError):
+                    continue
+                if not path:
+                    continue
+                out.append((path, float(m_strength)))
+            return out
+
+        global_stack = _stack_entries(lora_stack)
+
+        def _accumulate(mats, path, strength):
+            """Merge one LoRA file's matrices into the region accumulator."""
             if path not in file_cache:
                 file_cache[path] = _load_lora_matrices(path)
             base_mats = file_cache[path]
-            s = r["strength"] * float(base_strength)
-            strength_eff.append(s)
-            mats = {
-                sig: {**{k: v for k, v in d.items() if k != "scale"},
-                      "scale": d["scale"] * s}
-                for sig, d in base_mats.items()
-            }
+            for sig, d in base_mats.items():
+                scaled = {**{k: v for k, v in d.items() if k != "scale"},
+                          "scale": d["scale"] * strength}
+                if sig in mats:
+                    # Sum the deltas when the same signature appears twice.
+                    prev = mats[sig]
+                    mats[sig] = {
+                        **scaled,
+                        "scale": prev["scale"] + scaled["scale"],
+                    }
+                else:
+                    mats[sig] = scaled
+
+        for idx, r in enumerate(active):
+            region_stack = region_stacks[idx] if idx < len(region_stacks) else None
+            stack_entries = _stack_entries(region_stack)
+            wanted = global_stack + stack_entries
+
+            if not wanted and not has_lora(r):
+                region_loras.append({})   # ref-only row: holds its box, no LoRA
+                strength_eff.append(0.0)
+                continue
+
+            mats = {}
+            # Global stack, scaled by base_strength.
+            for path, strength in global_stack:
+                _accumulate(mats, path, strength * base_strength)
+            # This region's own stack, scaled by base_strength.
+            for path, strength in stack_entries:
+                _accumulate(mats, path, strength * base_strength)
+            # Dropdown row LoRA, if one is also set.
+            if has_lora(r):
+                s = r["strength"] * float(base_strength)
+                strength_eff.append(s)
+                _accumulate(mats, _resolve_lora_path(r["lora"]), s)
+            else:
+                strength_eff.append(1.0 if mats else 0.0)
+
             if not mats:
-                logging.warning("[Krea2RegionalMultiLoRAV3] '%s' contains no LoRA (A/B) "
-                                "or LoKr (kron factor) pairs.", r["lora"])
+                logging.warning("[Krea2RegionalMultiLoRAV3] region %d: stacks produced "
+                                "no LoRA (A/B) or LoKr pairs.", idx)
+            elif wanted:
+                logging.info("[Krea2RegionalMultiLoRAV3] region %d: %d stack LoRA(s), "
+                             "%d signature(s) merged.", idx, len(wanted), len(mats))
             region_loras.append(mats)
 
         patched = model.clone()
